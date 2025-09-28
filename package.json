@@ -1,7 +1,7 @@
 {
   "name": "yt-suite-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Backend service for YouTube downloader & processor",
   "main": "server.js",
   "type": "module",
   "scripts": {

@@ -11,18 +11,18 @@ const __dirname = path.dirname(__filename);
 // Downloader endpoint
 app.get("/download", (req, res) => {
   const url = req.query.url;
-  if (!url) return res.status(400).send("No URL provided");
+  if (!url) return res.status(400).send("❌ No URL provided");
 
   const output = path.join(__dirname, "video.mp4");
   exec(`yt-dlp -f mp4 -o "${output}" "${url}"`, (err) => {
     if (err) return res.status(500).send(err.message);
     res.download(output, "video.mp4", () => {
-      fs.unlinkSync(output); // delete after sending
+      fs.unlinkSync(output); // delete file after sending
     });
   });
 });
 
-// Processor endpoint (simple resize)
+// Processor endpoint (example: resize)
 app.get("/process", (req, res) => {
   const input = path.join(__dirname, "video.mp4");
   const output = path.join(__dirname, "processed.mp4");
