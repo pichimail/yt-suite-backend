@@ -1,0 +1,11 @@
+node_modules
+.git
+.gitignore
+README.md
+.env*
+temp_downloads/*
+*.log
+.DS_Store
+Thumbs.db
+.nyc_output
+coverage

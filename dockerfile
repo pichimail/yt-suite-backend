@@ -1,11 +1,11 @@
 # Use Node.js 18 for better compatibility
-FROM node:18
+FROM node:18-slim
 
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=8080
 
-# Install system dependencies (ffmpeg, python, curl)
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     python3 \
@@ -14,16 +14,17 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp using pip (more reliable than wget)
-RUN pip3 install yt-dlp
+# Install yt-dlp using pip (most reliable method)
+RUN pip3 install --no-cache-dir yt-dlp
 
-# Verify installations
-RUN ffmpeg -version && yt-dlp --version
+# Verify installations work
+RUN ffmpeg -version
+RUN yt-dlp --version
 
 # Create app directory
 WORKDIR /app
 
-# Copy package files first (for better caching)
+# Copy package files first (for better Docker caching)
 COPY package*.json ./
 
 # Install Node.js dependencies
@@ -35,12 +36,12 @@ COPY . .
 # Create temp directory for downloads
 RUN mkdir -p temp_downloads
 
-# Expose port (Cloud Run uses PORT env variable)
-EXPOSE $PORT
+# Expose port (Cloud Run will inject PORT env var)
+EXPOSE 8080
 
-# Health check
+# Add health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:$PORT/health || exit 1
+    CMD curl -f http://localhost:8080/health || exit 1
 
 # Start the application
 CMD ["npm", "start"]
