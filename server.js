@@ -1,38 +1,45 @@
-import express from "express";
-import { exec } from "child_process";
-import path from "path";
-import { fileURLToPath } from "url";
-import fs from "fs";
-
-const app = express();
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Downloader endpoint
-app.get("/download", (req, res) => {
+app.get("/playlist", (req, res) => {
   const url = req.query.url;
-  if (!url) return res.status(400).send("❌ No URL provided");
+  if (!url) return res.status(400).send("❌ No playlist URL provided");
 
-  const output = path.join(__dirname, "video.mp4");
-  exec(`yt-dlp -f mp4 -o "${output}" "${url}"`, (err) => {
-    if (err) return res.status(500).send(err.message);
-    res.download(output, "video.mp4", () => {
-      fs.unlinkSync(output); // delete file after sending
+  const tempDir = path.join(__dirname, "playlist_tmp");
+  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+
+  console.log(`🎶 Downloading playlist (720p MP4) from: ${url}`);
+
+  // yt-dlp: force MP4, best ≤ 720p
+  const command = `yt-dlp -f "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]" -o "${tempDir}/%(playlist_index)s - %(title)s.%(ext)s" "${url}"`;
+
+  exec(command, (err, stdout, stderr) => {
+    if (err) {
+      console.error("❌ yt-dlp error:", stderr);
+      return res.status(500).send("Playlist download failed: " + err.message);
+    }
+
+    // Prepare ZIP response
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", "attachment; filename=playlist-720p.zip");
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.pipe(res);
+
+    // Add all MP4 files in tempDir
+    fs.readdirSync(tempDir).forEach((file) => {
+      const filePath = path.join(tempDir, file);
+      if (file.endsWith(".mp4")) {
+        archive.file(filePath, { name: file });
+      }
+    });
+
+    archive.finalize();
+
+    // Cleanup after sending
+    archive.on("end", () => {
+      fs.readdirSync(tempDir).forEach((file) => {
+        safeUnlink(path.join(tempDir, file));
+      });
+      fs.rmdirSync(tempDir);
+      console.log("🧹 Playlist temp files cleaned up");
     });
   });
 });
-
-// Processor endpoint (example: resize)
-app.get("/process", (req, res) => {
-  const input = path.join(__dirname, "video.mp4");
-  const output = path.join(__dirname, "processed.mp4");
-
-  exec(`ffmpeg -i "${input}" -vf "scale=1280:720" "${output}"`, (err) => {
-    if (err) return res.status(500).send(err.message);
-    res.download(output, "processed.mp4", () => {
-      fs.unlinkSync(output);
-    });
-  });
-});
-
-app.listen(3000, () => console.log("✅ Backend running on http://localhost:3000"));
