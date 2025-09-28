@@ -1,47 +1,43 @@
-# Use Node.js 18 for better compatibility
+# Use Node.js with Debian base (not Alpine for easier package management)
 FROM node:18-slim
 
-# Set environment variables
-ENV NODE_ENV=production
-ENV PORT=8080
+# Set working directory
+WORKDIR /usr/src/app
 
-# Install system dependencies
+# Install system dependencies including Python, yt-dlp, and ffmpeg
 RUN apt-get update && apt-get install -y \
-    ffmpeg \
     python3 \
     python3-pip \
+    python3-venv \
+    ffmpeg \
     curl \
-    wget \
+    ca-certificates \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp using pip (most reliable method)
-RUN pip3 install --no-cache-dir yt-dlp
+# Install yt-dlp using Python virtual environment (to handle PEP 668)
+RUN python3 -m venv /opt/yt-dlp-venv \
+    && /opt/yt-dlp-venv/bin/pip install --no-cache-dir yt-dlp \
+    && ln -s /opt/yt-dlp-venv/bin/yt-dlp /usr/local/bin/yt-dlp
 
-# Verify installations work
-RUN ffmpeg -version
-RUN yt-dlp --version
-
-# Create app directory
-WORKDIR /app
-
-# Copy package files first (for better Docker caching)
+# Copy package files
 COPY package*.json ./
 
 # Install Node.js dependencies
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci --only=production
 
 # Copy application code
 COPY . .
 
-# Create temp directory for downloads
-RUN mkdir -p temp_downloads
+# Create output directory for temporary files
+RUN mkdir -p /tmp/downloads
 
-# Expose port (Cloud Run will inject PORT env var)
+# Set environment variables for Cloud Run
+ENV PORT=8080
+ENV NODE_ENV=production
+
+# Expose port
 EXPOSE 8080
 
-# Add health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
-
 # Start the application
-CMD ["npm", "start"]
+CMD ["node", "server.js"]
